@@ -1,0 +1,288 @@
+#!/usr/bin/perl
+# ---   *   ---   *   ---
+# MKRD
+# Generates parser boilerplate
+#
+# LIBRE SOFTWARE
+# Licensed under GNU GPL3
+# be a bro and inherit
+#
+# CONTRIBUTORS
+# lyeb,
+
+# ---   *   ---   *   ---
+# deps
+
+  use v5.36.0;
+  use strict;
+  use warnings;
+
+  use English qw(-no_match_vars);
+
+  use lib $ENV{'ARPATH'}.'/lib/sys/';
+
+  use Style;
+
+  use Arstd::Array;
+  use Arstd::IO;
+
+  use Type;
+
+  use lib $ENV{'ARPATH'}.'/lib/';
+  use Lang::Peso;
+  use Peso::Rd;
+  use Emit::Std;
+
+# ---   *   ---   *   ---
+# info
+
+  our $VERSION=v0.00.1; #b
+  our $AUTHOR='IBN-3DILA';
+
+# ---   *   ---   *   ---
+# ROM
+
+  my $ROM_RE=Lang::insens('ROM');
+  my $NOCASE_RE=Lang::insens('nocase');
+
+  my $QDQ_RE=qr{['"]}x;
+
+  my @SEQ_SZW=qw(
+    uint8_t uint16_t uint32_t uint64_t
+
+  );
+
+  my @SEQ_SZ=(1,2,4,8);
+
+# ---   *   ---   *   ---
+
+  $ROM_RE=qr{$ROM_RE}x;
+  $NOCASE_RE=qr{$NOCASE_RE}x;
+
+# ---   *   ---   *   ---
+
+my $rd=Peso::Rd::parse(
+
+  Lang->Peso,
+  $ENV{'ARPATH'}.'/peso/bits/keyw.pe'
+
+);
+
+my $blk=$rd->select_block(-ROOT);
+my $tree=$blk->{tree};
+
+Lang->Peso->hier_sort($rd);
+$rd->replstr($tree);
+
+# ---   *   ---   *   ---
+
+for my $rom($tree->branches_in($ROM_RE)) {
+
+  my $rom_name=$rom->leaf_value(0);
+  $rom_name=~ s{$QDQ_RE}{}sxgm;
+
+  $rom->{value}=$rom_name;
+
+  $rom->pluck(
+    $rom->{leaves}->[0],
+    $rom->{leaves}->[1],
+
+  );
+
+# ---   *   ---   *   ---
+
+  for my $leaf(@{$rom->{leaves}}) {
+
+    if($leaf->{value} eq ';') {
+      $rom->pluck($leaf);
+
+    } elsif(
+      exists $Type::Table->{$leaf->{value}}
+
+    ) {
+
+      my $t=$Type::Table->{$leaf->{value}};
+      my $e_sz=$t->{size};
+
+      my $data=$leaf->{leaves};
+
+      my $e_name=$data->[0]->{value};
+      my $e_values=$data->[1]->{value};
+
+      $leaf->pluck(@$data);
+
+      $leaf->{value}=[
+        name=>$e_name,
+        size=>$e_sz,
+        value=>$e_values,
+
+      ];
+
+    };
+
+# ---   *   ---   *   ---
+
+  };
+
+};
+
+my $defs=$NULLSTR;
+
+my $delim_case_proto=q{
+case $open:
+  rd_flags^=$flag_n*(!escd);
+
+  match|=(
+    rd_flags&$flag_n
+
+  )!=$flag_n;
+
+  match|=!(match&1)*2;
+  if(match&2) {terminate_token();};
+
+  break;
+};
+
+my @cases=([],[],[],[]);
+my @delim_flags=();
+
+# ---   *   ---   *   ---
+
+my $delims=$tree->branch_in(qr{^delim$}x);
+for my $de(@{$delims->{leaves}}) {
+
+  my ($name,$size,$value)=array_values($de->{value});
+  my ($open,$close,$rule)=split $COMMA_RE,$value;
+
+  for my $x($open,$close,$rule) {
+    $x=~ s[^\$][0x];
+
+  };
+
+# ---   *   ---   *   ---
+
+  my $flag_n=q[F_].$name;
+  my $flag_v=$rule;
+
+  my $proto=$delim_case_proto;
+
+  for my $tag(qw(
+
+    $open $flag_n $name
+
+  )) {
+
+    my $v=eval($tag);
+    $proto=~ s[\Q$tag][$v]sxmg;
+
+  };
+
+# ---   *   ---   *   ---
+
+  $defs.="#define $flag_n $flag_v\n";
+  push @{$cases[$size-1]},$proto;
+  push @delim_flags,$flag_v;
+
+};
+
+# ---   *   ---   *   ---
+
+my $ops=$tree->branch_in(qr{^ops$}x);
+for my $op(@{$ops->{leaves}}) {
+
+  my ($name,$size,$values)=array_values($op->{value});
+  my @values=split $COMMA_RE,$values;
+
+  my $case=$NULLSTR;
+
+  for my $x(@values) {
+    $x=~ s[^\s*\$][0x]sxmg;
+    $case.="case $x:\n";
+
+  };
+
+  $case.="if(!(rd_flags&F_DELIM)) {\n";
+  $case.="terminate_token();match|=1;\n}";
+  $case.="else {match|=2;};";
+  $case.="break;\n";
+
+  push @{$cases[$size-1]},$case;
+
+};
+
+# ---   *   ---   *   ---
+
+my $i=3;
+my $cases=$NULLSTR;
+
+for my $s_cases(reverse @cases) {
+
+  if(@$s_cases) {
+
+    my $t=$SEQ_SZW[$i];
+    my $sz=$SEQ_SZ[$i];
+
+    $cases.="match=0;\n";
+    $cases.="$t c$i=($t) *input;";
+    $cases.="switch (c$i) {";
+    map {$cases.=$ARG} @$s_cases;
+
+    if($sz==1) {
+
+    $cases.="case 0x20:\n".
+
+q[if(!(rd_flags&F_DELIM)) {
+  terminate_token();
+  break;
+
+};];
+
+    $cases.="default:match|=2;";
+
+    };
+
+    $cases.="}";
+
+    $cases.="\n".
+
+      "if(match) {\n".
+      "char* buff=((char*) ".
+        "token_mem)+token_ptr;\n".
+
+      "for(int x=0;x<$sz;x++) {".
+
+      "*buff=c$i;buff++;}\n".
+
+      "token_ptr+=$sz;\n".
+
+      "if((match&1) && !escd) {".
+        "terminate_token();".
+
+      "};\n".
+
+      "goto TAIL;".
+      "\n}"
+
+    ;
+
+  };
+
+  $i--;
+
+};
+
+# ---   *   ---   *   ---
+
+$defs.='#define F_DELIM ('.(
+  join '|',@delim_flags
+
+).")\n";
+
+$cases=Emit::Std::note($AUTHOR,'//').$cases;
+$defs=Emit::Std::note($AUTHOR,'//').$defs;
+
+owc('bits/cases.c',$cases);
+owc('bits/flags.h',$defs);
+
+# ---   *   ---   *   ---
+1; # ret

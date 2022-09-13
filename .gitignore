@@ -1,0 +1,15 @@
+*
+!/**/
+!*.*
+
+*.bin
+*.o
+
+mig/
+!bin/*
+
+# generated files
+.avto-cache
+avto
+bits/flags.h
+bits/cases.c
