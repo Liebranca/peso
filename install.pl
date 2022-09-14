@@ -21,7 +21,7 @@ Avt::set_config(
   pre_build=>q{
 
     `bin/mkrd`;
-    `gcc proto.c -o tests/proto`;
+    `gcc -Os proto.c -o tests/proto`;
 
     exit;
 

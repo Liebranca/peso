@@ -6,7 +6,7 @@ $;
   TITLE     keyw
 
   VERSION   v0.00.1b
-  AUTHOR    'IBN-3dila'
+  AUTHOR    'IBN-3DILA'
 
   CLAN      peso
 
@@ -30,10 +30,19 @@ ROM 'ops';
 
   ;
 
+ROM 'term';
+  byte std $3B;
+
+ROM 'comt';
+  byte KUSH $23,$0A,$08;
+
 # ---   *   ---   *   ---
 
-#ROM 'keyw';
-#  nocase 'rom';
-#  nocase 'proc';
+ROM 'keyw';
+
+  nocase 'clan';
+  nocase 'rom';
+  nocase 'reg';
+  nocase 'proc';
 
 # ---   *   ---   *   ---

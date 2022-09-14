@@ -13,3 +13,4 @@ mig/
 avto
 bits/flags.h
 bits/cases.c
+bits/loadkeyw.c

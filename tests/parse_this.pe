@@ -1,0 +1,4 @@
+$;
+
+REG 'dump';
+  byte x $01;

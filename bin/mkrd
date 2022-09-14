@@ -56,8 +56,16 @@
 
 # ---   *   ---   *   ---
 
-  $ROM_RE=qr{$ROM_RE}x;
-  $NOCASE_RE=qr{$NOCASE_RE}x;
+  $ROM_RE=qr{^$ROM_RE$}x;
+  $NOCASE_RE=qr{^$NOCASE_RE$}x;
+
+# ---   *   ---   *   ---
+
+sub hexP2C($s) {
+  $s=~ s[^\s*\$][0x]sxmg;
+  return $s;
+
+};
 
 # ---   *   ---   *   ---
 
@@ -79,7 +87,6 @@ $rd->replstr($tree);
 for my $rom($tree->branches_in($ROM_RE)) {
 
   my $rom_name=$rom->leaf_value(0);
-  $rom_name=~ s{$QDQ_RE}{}sxgm;
 
   $rom->{value}=$rom_name;
 
@@ -127,6 +134,58 @@ for my $rom($tree->branches_in($ROM_RE)) {
 };
 
 my $defs=$NULLSTR;
+my @cases=([],[],[],[]);
+my @delim_flags=();
+my @skip_flags=();
+
+# ---   *   ---   *   ---
+
+my $comt_case_proto=q[
+
+case $open:
+  if(!(rd_flags&F_DELIM)) {
+    rd_flags|=$flag_n;
+    skip_end=$close;
+
+  };
+
+  break;
+
+];
+
+my $comt=$tree->branch_in(qr{^'comt'$}x);
+for my $ct(@{$comt->{leaves}}) {
+
+  my ($name,$size,$value)=array_values(
+    $ct->{value}
+
+  );
+
+  my ($open,$close,$rule)=split $COMMA_RE,$value;
+
+  for my $x($open,$close,$rule) {
+    $x=hexP2C($x);
+
+  };
+
+  my $flag_n=q[F_].$name;
+  my $flag_v=$rule;
+
+  my $proto=$comt_case_proto;
+  for my $tag(qw($open $close $flag_n)) {
+    my $v=eval($tag);
+    $proto=~ s[\Q$tag][$v]sxmg;
+
+  };
+
+  push @{$cases[$size-1]},$proto;
+  push @skip_flags,$flag_v;
+
+  $defs.="#define $flag_n $flag_v\n";
+
+};
+
+# ---   *   ---   *   ---
 
 my $delim_case_proto=q{
 case $open:
@@ -143,19 +202,16 @@ case $open:
   break;
 };
 
-my @cases=([],[],[],[]);
-my @delim_flags=();
-
 # ---   *   ---   *   ---
 
-my $delims=$tree->branch_in(qr{^delim$}x);
+my $delims=$tree->branch_in(qr{^'delim'$}x);
 for my $de(@{$delims->{leaves}}) {
 
   my ($name,$size,$value)=array_values($de->{value});
   my ($open,$close,$rule)=split $COMMA_RE,$value;
 
   for my $x($open,$close,$rule) {
-    $x=~ s[^\$][0x];
+    $x=hexP2C($x);
 
   };
 
@@ -187,7 +243,7 @@ for my $de(@{$delims->{leaves}}) {
 
 # ---   *   ---   *   ---
 
-my $ops=$tree->branch_in(qr{^ops$}x);
+my $ops=$tree->branch_in(qr{^'ops'$}x);
 for my $op(@{$ops->{leaves}}) {
 
   my ($name,$size,$values)=array_values($op->{value});
@@ -196,7 +252,7 @@ for my $op(@{$ops->{leaves}}) {
   my $case=$NULLSTR;
 
   for my $x(@values) {
-    $x=~ s[^\s*\$][0x]sxmg;
+    $x=hexP2C($x);
     $case.="case $x:\n";
 
   };
@@ -207,6 +263,38 @@ for my $op(@{$ops->{leaves}}) {
   $case.="break;\n";
 
   push @{$cases[$size-1]},$case;
+
+};
+
+# ---   *   ---   *   ---
+
+my $term_case_proto=q[
+case $value:
+  if(!(rd_flags&F_DELIM)) {
+
+    terminate_token();
+    terminate_expr();
+
+    break;
+
+  };
+
+];
+
+my $term=$tree->branch_in(qr{^'term'$}x);
+for my $t(@{$term->{leaves}}) {
+
+  my ($name,$size,$value)=array_values(
+    $t->{value}
+
+  );
+
+  $value=hexP2C($value);
+
+  my $proto=$term_case_proto;
+  $proto=~ s[\$value][$value];
+
+  push @{$cases[$size-1]},$proto;
 
 };
 
@@ -229,6 +317,8 @@ for my $s_cases(reverse @cases) {
 
     if($sz==1) {
 
+    $cases.="case 0x09:\n";
+    $cases.="case 0x0A:\n";
     $cases.="case 0x20:\n".
 
 q[if(!(rd_flags&F_DELIM)) {
@@ -278,11 +368,66 @@ $defs.='#define F_DELIM ('.(
 
 ).")\n";
 
+$defs.='#define F_SKIP ('.(
+  join '|',@skip_flags
+
+).")\n";
+
 $cases=Emit::Std::note($AUTHOR,'//').$cases;
 $defs=Emit::Std::note($AUTHOR,'//').$defs;
 
 owc('bits/cases.c',$cases);
 owc('bits/flags.h',$defs);
+
+# ---   *   ---   *   ---
+
+my @insens=();
+my @sens=();
+
+my $keyw=$tree->branch_in(qr{^'keyw'$}x);
+for my $k(@{$keyw->{leaves}}) {
+
+  my $type=$k->{value};
+  my $value=$k->leaf_value(0);
+
+  $value=~ s{$QDQ_RE}{}sxgm;
+  $value="\"$value\"";
+
+  if($type eq 'nocase') {
+    push @insens,uc $value;
+
+  } else {
+    push @sens,$value;
+
+  };
+
+};
+
+# ---   *   ---   *   ---
+
+my $k_idex=1;
+my $loadkeyw=$NULLSTR;
+
+for my $key(@insens,@sens) {
+
+  $loadkeyw.=
+
+    q[hash_set(strtab,].
+      $key.
+
+    q[,(void*) ].
+      $k_idex.
+
+    q[);]."\n"
+
+  ;
+
+  $k_idex++;
+
+};
+
+$loadkeyw=Emit::Std::note($AUTHOR,'//').$loadkeyw;
+owc('bits/loadkeyw.c',$loadkeyw);
 
 # ---   *   ---   *   ---
 1; # ret
