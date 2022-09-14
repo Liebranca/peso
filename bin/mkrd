@@ -426,6 +426,8 @@ for my $key(@insens,@sens) {
 
 };
 
+$loadkeyw.="strtab->keyw_cnt=strtab->top;\n";
+
 $loadkeyw=Emit::Std::note($AUTHOR,'//').$loadkeyw;
 owc('bits/loadkeyw.c',$loadkeyw);
 

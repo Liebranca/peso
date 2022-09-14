@@ -26,6 +26,12 @@
   #include <errno.h>
 
 // ---   *   ---   *   ---
+// GBL
+
+  static uint64_t strtab_top=1;
+  static uint64_t keyw_top=0;
+
+// ---   *   ---   *   ---
 
 typedef struct {
 
@@ -33,6 +39,21 @@ typedef struct {
   void* value;
 
 } Hashed;
+
+typedef struct {
+
+  size_t    sz;
+  size_t    bsz;
+
+  uint64_t  top;
+  uint64_t  keyw_cnt;
+
+  char*     keys;
+  size_t    keys_ptr;
+
+  Hashed    elems[];
+
+} Strtab;
 
 // ---   *   ---   *   ---
 
@@ -56,39 +77,55 @@ uint64_t hashfn_str(size_t sz,char* k) {
 
 // ---   *   ---   *   ---
 
-void* nthash(int mag) {
+Strtab* nthash(int mag) {
 
   size_t sz=1;
   do {sz*=2;} while(mag--);
 
-  void* table=malloc(
+  size_t memsz=
 
-    sizeof(size_t)
+    sizeof(Strtab)
   + (sz*(sizeof(Hashed)*16))
+
+  ;
+
+  Strtab* table=(Strtab*) malloc(memsz);
+  memset(table,0,memsz);
+
+  table->sz=sz;
+  table->bsz=sz*16;
+
+  table->keys=(char*) malloc(
+    0x1000*sizeof(char)
 
   );
 
-  *((size_t*) table)=sz;
+  table->keys_ptr=0;
 
   return table;
 
 };
 
+void dlhash(Strtab* table) {
+
+  free(table->keys);
+  free(table);
+
+};
+
 // ---   *   ---   *   ---
 
-void hash_set(
-  void* table,
+uint64_t hash_set(
 
-  char* key,
-  void* value
+  Strtab* table,
+
+  char*   key,
+  void*   value
 
 ) {
 
-  size_t* sz=(size_t*) table;
-  Hashed* elems=(Hashed*) (sz+1);
-
-  uint64_t idex=hashfn_str(*sz,key);
-  Hashed* h=elems+idex;
+  uint64_t idex=hashfn_str(table->sz,key);
+  Hashed* h=table->elems+idex;
 
   int i=0;
 
@@ -97,7 +134,7 @@ void hash_set(
     if(!strcmp(h->key,key)) {break;};
 
     idex++;
-    h=elems+idex;
+    h=table->elems+idex;
 
     i++;
 
@@ -110,26 +147,33 @@ void hash_set(
 
   };
 
-  h->key=key;
+  // save copy of key
+  char* local_key=table->keys+table->keys_ptr;
+  strcpy(local_key,key);
+
+  table->keys_ptr+=strlen(key)+1;
+
+  h->key=local_key;
   h->value=value;
+
+  table->top++;
+
+  return idex;
 
 };
 
 // ---   *   ---   *   ---
 
 void* hash_get(
-  void* table,
-  char* key
+  Strtab* table,
+  char*   key
 
 ) {
 
   void* out=NULL;
 
-  size_t* sz=(size_t*) table;
-  Hashed* elems=(Hashed*) (sz+1);
-
-  uint64_t idex=hashfn_str(*sz,key);
-  Hashed* h=elems+idex;
+  uint64_t idex=hashfn_str(table->sz,key);
+  Hashed* h=table->elems+idex;
 
   int match=0;
   int i=0;
@@ -144,13 +188,48 @@ void* hash_get(
     ) {match=1;break;};
 
     idex++;
-    h=elems+idex;
+    h=table->elems+idex;
 
     i++;
 
   };
 
   if(match) {out=h->value;};
+  return out;
+
+};
+
+uint64_t hash_get_idex(
+  Strtab* table,
+  char*   key
+
+) {
+
+  uint64_t out=0;
+
+  uint64_t idex=hashfn_str(table->sz,key);
+  Hashed* h=table->elems+idex;
+
+  int match=0;
+  int i=0;
+
+  while(i<16) {
+
+    if(
+
+       h->key!=NULL
+    && !strcmp(h->key,key)
+
+    ) {match=1;break;};
+
+    idex++;
+    h=table->elems+idex;
+
+    i++;
+
+  };
+
+  if(match) {out=idex;};
   return out;
 
 };

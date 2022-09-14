@@ -45,4 +45,6 @@ ROM 'keyw';
   nocase 'reg';
   nocase 'proc';
 
+  nocase 'byte';
+
 # ---   *   ---   *   ---

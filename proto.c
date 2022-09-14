@@ -18,26 +18,25 @@
 
   #define EXPLEN    0x40
   #define MEMTK     0x0400
-  #define MEMSZ     0x4000
+  #define MEMSZ     0x0800
 
 // ---   *   ---   *   ---
 // GBL
 
-  static uint64_t rd_flags      = 0x00;
-  static uint64_t token_mem[4]  = {0};
-  static size_t   token_ptr     = 0;
+  static uint64_t   rd_flags     = 0x00;
+  static uint64_t   token_mem[4] = {0};
+  static size_t     token_ptr    = 0;
 
-  static char**   expr          = NULL;
-  static size_t   expr_ptr      = 0;
-  static size_t   expr_len      = 0;
-  static size_t   expr_cnt      = 0;
+  static uint64_t*  expr         = NULL;
+  static size_t     expr_ptr     = 0;
+  static size_t     expr_cnt     = 0;
 
-  static char**   expr_arr      = NULL;
-  static char*    expr_mem      = NULL;
-  static size_t   mem_ptr       = 0;
+  static uint64_t** expr_arr     = NULL;
+  static uint64_t*  expr_mem     = NULL;
+  static size_t     mem_ptr      = 0;
 
-  static uint64_t skip_end      = 0x00;
-  static void*    strtab        = NULL;
+  static uint64_t   skip_end     = 0x00;
+  static Strtab*    strtab       = NULL;
 
 // ---   *   ---   *   ---
 // open-read-close
@@ -70,8 +69,10 @@ char* orc(const char* fpath) {
 
 uint64_t tryfet(char* key) {
 
-  int len=strlen(key);
+  uint64_t out=0;
 
+  // make local copy of key
+  int len=strlen(key);
   char* cpy=(char*) malloc(
     sizeof(char)*len
 
@@ -79,6 +80,7 @@ uint64_t tryfet(char* key) {
 
   strcpy(cpy,key);
 
+  // up the case
   for(int i=0;i<len;i++) {
     char c=cpy[i];
     c-=0x20*(c>=0x61 && c<=0x7A);
@@ -87,22 +89,36 @@ uint64_t tryfet(char* key) {
 
   };
 
-  void* value=hash_get(strtab,cpy);
-  if(value==NULL) {
-    value=hash_get(strtab,key);
+// ---   *   ---   *   ---
 
-    if(value!=NULL) {
-      printf("CASE   %s : %016X\n",key,value);
+  // is case-insensitive keyword
+  out=hash_get_idex(strtab,cpy);
+
+  if(!out) {
+
+    // is case-sensitive keyword
+    out=hash_get_idex(strtab,key);
+
+    // is regular token
+    if(!out) {
+
+      uint64_t idex=hash_set(strtab,key,NULL);
+
+      strtab->elems[idex].value=(void*) (
+        idex+strtab->bsz
+
+      );
+
+      out=(uintptr_t) strtab->elems[idex].value;
 
     };
 
-  } else {
-    printf("NOCASE %s : %016X\n",key,value);
-
   };
 
+// ---   *   ---   *   ---
+
   free(cpy);
-  return 0;
+  return out;
 
 };
 
@@ -113,16 +129,13 @@ void terminate_token(void) {
   if(token_ptr) {
 
     char* buff=(char*) token_mem;
-
-    tryfet(buff);
+    uint64_t n=tryfet(buff);
 
     // copy over to heap
-    strcpy(expr[expr_ptr],buff);
-    expr_ptr++;
-    expr_len+=token_ptr;
+    expr[expr_ptr++]=n;
 
     // reset token
-    memset(buff,0,token_ptr);
+    memset(buff,0,strlen(buff));
     token_ptr=0;
 
   };
@@ -134,23 +147,14 @@ void terminate_token(void) {
 void terminate_expr(void) {
 
   expr_arr[expr_cnt]=expr_mem+mem_ptr;
-
-  uint32_t* idx=(uint32_t*) (expr_mem+mem_ptr);
-  *idx=expr_ptr;
-
-  mem_ptr+=4;
+  expr_mem[mem_ptr++]=expr_ptr;
 
   for(size_t i=0;i<expr_ptr;i++) {
-    char* buff=expr[i];
-    strcpy(expr_mem+mem_ptr,buff);
-
-    mem_ptr+=strlen(buff)+1;
+    *(expr_mem+(mem_ptr++))=expr[i];
 
   };
 
   expr_ptr=0;
-  expr_len=0;
-
   expr_cnt++;
 
 };
@@ -209,39 +213,62 @@ TAIL:
 
 // ---   *   ---   *   ---
 
+void tryipret(
+
+  uint64_t  tcnt,
+  uint64_t* buff
+
+) {
+
+  for(uint64_t i=0;i<tcnt;i++) {
+
+    uint64_t t=*buff++;
+    uint64_t idex=0;
+
+    if(t<strtab->bsz) {
+      idex=t;
+      printf("KEY ");
+
+    } else {
+      idex=t-strtab->bsz;
+      printf("VAL ");
+
+    };
+
+    Hashed* h=strtab->elems+idex;
+    printf("%s\n",h->key);
+
+  };
+
+};
+
+// ---   *   ---   *   ---
+
 void main(void) {
 
   // setup
   strtab=nthash(4);
   #include "bits/loadkeyw.c"
 
-  expr_mem=(char*) malloc(
-    MEMSZ*sizeof(char)
+  expr_mem=(uint64_t*) malloc(
+    MEMSZ*sizeof(uint64_t)
 
   );
 
-  expr_arr=(char**) malloc(
-    MEMTK*sizeof(char**)
+  expr_arr=(uint64_t**) malloc(
+    MEMTK*sizeof(uint64_t*)
 
   );
 
-  memset(expr_mem,0,MEMSZ*sizeof(char));
+  memset(expr_mem,0,MEMSZ*sizeof(uint64_t));
 
 // ---   *   ---   *   ---
 // ^continued
 
-  expr=(char**) malloc(
-    EXPLEN*sizeof(char*)
+  expr=(uint64_t*) malloc(
+    EXPLEN*sizeof(uint64_t)
 
   );
-
-  for(int x=0;x<EXPLEN;x++) {
-    size_t sz=(sizeof(uint64_t)*4)*sizeof(char);
-
-    expr[x]=(char*) malloc(sz);
-    memset(expr[x],0,sz);
-
-  };
 
 // ---   *   ---   *   ---
 
@@ -249,12 +276,14 @@ void main(void) {
   rd(input);
 
   for(int i=0;i<expr_cnt;i++) {
-    uint32_t idx=*((uint32_t*) (expr_arr[i]));
-    char* buff=expr_arr[i]+4;
 
-    for(int j=0;j<idx;j++) {
-      printf("%s\n",buff);
-      buff+=strlen(buff)+1;
+    uint64_t tcnt=*(expr_arr[i]);
+    uint64_t* buff=expr_arr[i]+1;
+
+    tryipret(tcnt,buff);
+
+    for(int j=0;j<tcnt;j++) {
+//      printf("%016X\n",*buff++);
 
     };
 
@@ -266,17 +295,12 @@ void main(void) {
 // cleanup
 
   free(input);
-  for(int x=0;x<EXPLEN;x++) {
-    free(expr[x]);
-
-  };
-
   free(expr);
 
   free(expr_arr);
   free(expr_mem);
 
-  free(strtab);
+  dlhash(strtab);
 
 };
 
