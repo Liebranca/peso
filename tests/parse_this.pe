@@ -1,4 +1,10 @@
+# format ELF executable 3
 $;
 
+# segment readable writeable
+# align $10
+# .__PESOREG__%name%
 REG 'dump';
+
+# %name% $:type_to_ddecl %type%;> %values%
   byte x $01;

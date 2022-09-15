@@ -47,4 +47,20 @@ ROM 'keyw';
 
   nocase 'byte';
 
+  nocase '$';
+
+# ---   *   ---   *   ---
+
+PROC '$';
+  out(format ELF64 executable 3);
+
+PROC 'REG';
+
+  in ? "__reg" name;
+
+  out(segment readable writeable),
+    (align $10),(.__PESOREG__%s:)
+
+  ;
+
 # ---   *   ---   *   ---

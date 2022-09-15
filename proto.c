@@ -38,6 +38,8 @@
   static uint64_t   skip_end     = 0x00;
   static Strtab*    strtab       = NULL;
 
+  #include "bits/xlate_tab.c"
+
 // ---   *   ---   *   ---
 // open-read-close
 
@@ -220,23 +222,14 @@ void tryipret(
 
 ) {
 
-  for(uint64_t i=0;i<tcnt;i++) {
+  uint64_t t=*buff++;
 
-    uint64_t t=*buff++;
-    uint64_t idex=0;
+  if(t<strtab->bsz) {
 
-    if(t<strtab->bsz) {
-      idex=t;
-      printf("KEY ");
+    Hashed* h=strtab->elems+t;
+    uint64_t first=(uint64_t) h->value;
 
-    } else {
-      idex=t-strtab->bsz;
-      printf("VAL ");
-
-    };
-
-    Hashed* h=strtab->elems+idex;
-    printf("%s\n",h->key);
+    #include "bits/xlate_switch.c"
 
   };
 
@@ -286,8 +279,6 @@ void main(void) {
 //      printf("%016X\n",*buff++);
 
     };
-
-    printf("_______\n\n");
 
   };
 

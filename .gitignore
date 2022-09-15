@@ -14,3 +14,5 @@ avto
 bits/flags.h
 bits/cases.c
 bits/loadkeyw.c
+bits/xlate_tab.c
+bits/xlate_switch.c

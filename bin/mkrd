@@ -79,7 +79,9 @@ my $rd=Peso::Rd::parse(
 my $blk=$rd->select_block(-ROOT);
 my $tree=$blk->{tree};
 
-Lang->Peso->hier_sort($rd);
+#Lang->Peso->hier_sort($rd);
+
+Lang->Peso->reorder($tree);
 $rd->replstr($tree);
 
 # ---   *   ---   *   ---
@@ -88,7 +90,7 @@ for my $rom($tree->branches_in($ROM_RE)) {
 
   my $rom_name=$rom->leaf_value(0);
 
-  $rom->{value}=$rom_name;
+  $rom->{value}='ROM::'.$rom_name;
 
   $rom->pluck(
     $rom->{leaves}->[0],
@@ -125,6 +127,23 @@ for my $rom($tree->branches_in($ROM_RE)) {
 
       ];
 
+# ---   *   ---   *   ---
+
+    } elsif($leaf->{value}=~ m[^proc$]i) {
+
+      my $data=$leaf->{leaves};
+
+      my $e_name=$data->[0]->{value};
+      my $e_values=$data->[1]->{value};
+
+      $leaf->{value}=
+        $rom->{value}.'::PROC::'.$e_name;
+
+      if($e_values ne ';') {} else {
+        $leaf->pluck(@{$leaf->{leaves}}[0..1]);
+
+      };
+
     };
 
 # ---   *   ---   *   ---
@@ -153,7 +172,7 @@ case $open:
 
 ];
 
-my $comt=$tree->branch_in(qr{^'comt'$}x);
+my $comt=$tree->branch_in(qr{^ROM::'comt'$}x);
 for my $ct(@{$comt->{leaves}}) {
 
   my ($name,$size,$value)=array_values(
@@ -204,7 +223,7 @@ case $open:
 
 # ---   *   ---   *   ---
 
-my $delims=$tree->branch_in(qr{^'delim'$}x);
+my $delims=$tree->branch_in(qr{^ROM::'delim'$}x);
 for my $de(@{$delims->{leaves}}) {
 
   my ($name,$size,$value)=array_values($de->{value});
@@ -243,7 +262,7 @@ for my $de(@{$delims->{leaves}}) {
 
 # ---   *   ---   *   ---
 
-my $ops=$tree->branch_in(qr{^'ops'$}x);
+my $ops=$tree->branch_in(qr{^ROM::'ops'$}x);
 for my $op(@{$ops->{leaves}}) {
 
   my ($name,$size,$values)=array_values($op->{value});
@@ -281,7 +300,7 @@ case $value:
 
 ];
 
-my $term=$tree->branch_in(qr{^'term'$}x);
+my $term=$tree->branch_in(qr{^ROM::'term'$}x);
 for my $t(@{$term->{leaves}}) {
 
   my ($name,$size,$value)=array_values(
@@ -384,16 +403,27 @@ owc('bits/flags.h',$defs);
 my @insens=();
 my @sens=();
 
-my $keyw=$tree->branch_in(qr{^'keyw'$}x);
+my %procs=();
+
+my $keyw=$tree->branch_in(qr{^ROM::'keyw'$}x);
 for my $k(@{$keyw->{leaves}}) {
 
   my $type=$k->{value};
   my $value=$k->leaf_value(0);
 
+  if(!defined $value) {
+    $k->prich();
+    exit;
+
+  };
+
   $value=~ s{$QDQ_RE}{}sxgm;
   $value="\"$value\"";
 
-  if($type eq 'nocase') {
+  if($type=~ m[rom::'keyw'::proc]i) {
+    $procs{$type}=$k;
+
+  } elsif($type eq 'nocase') {
     push @insens,uc $value;
 
   } else {
@@ -407,6 +437,10 @@ for my $k(@{$keyw->{leaves}}) {
 
 my $k_idex=1;
 my $loadkeyw=$NULLSTR;
+
+my $xlate_tab=$NULLSTR;
+my $xlate_code=$NULLSTR;
+my $xlate_switch="switch(first) {\n\n";
 
 for my $key(@insens,@sens) {
 
@@ -422,14 +456,74 @@ for my $key(@insens,@sens) {
 
   ;
 
+  $key=~ s{$QDQ_RE}{}sxgm;
+  my $sym=$key;
+
+  $key="'$key'";
+
+  my $proc=$procs{'ROM::\'keyw\'::PROC::'.$key};
+
+  if($proc) {
+
+    my ($fmat,$code)=
+      Lang->Peso->mini_ipret($rd,$proc);
+
+    my $fid='PROC_'.$k_idex;
+
+    $xlate_tab.=
+
+      '#define '.$fid.'_STR'.
+      q{ }.$fmat."\n";
+
+    $code=~ s[%FMAT%][$fid]sxmg;
+    $xlate_code.=$code;
+
+    $xlate_switch.="case $k_idex:\n";
+    $xlate_switch.="  FN_$fid(tcnt,buff);\n";
+    $xlate_switch.="  break;\n\n";
+
+  };
+
   $k_idex++;
 
 };
+
+$xlate_switch.="\n}\n";
 
 $loadkeyw.="strtab->keyw_cnt=strtab->top;\n";
 
 $loadkeyw=Emit::Std::note($AUTHOR,'//').$loadkeyw;
 owc('bits/loadkeyw.c',$loadkeyw);
+
+$xlate_tab=Emit::Std::note($AUTHOR,'//').
+  $xlate_tab."\n\n";
+
+$xlate_tab.=q%char* get_keyw_or_val(uint64_t x) {
+
+  char* out=NULL;
+
+  if(x<strtab->bsz) {
+    out=strtab->elems[x].key;
+
+  } else {
+    out=strtab->elems[x-strtab->bsz].key;
+
+  };
+
+  return out;
+
+};
+
+%;
+
+$xlate_tab.=$xlate_code;
+
+owc('bits/xlate_tab.c',$xlate_tab);
+
+$xlate_switch=Emit::Std::note($AUTHOR,'//').
+  $xlate_switch;
+
+owc('bits/xlate_switch.c',$xlate_switch);
 
 # ---   *   ---   *   ---
 1; # ret
