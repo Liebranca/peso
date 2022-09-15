@@ -6,5 +6,5 @@ $;
 # .__PESOREG__%name%
 REG 'dump';
 
-# %name% $:type_to_ddecl %type%;> %values%
+# %name% db %values%
   byte x $01;

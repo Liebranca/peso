@@ -38,6 +38,11 @@
   static uint64_t   skip_end     = 0x00;
   static Strtab*    strtab       = NULL;
 
+  static char*      pe_blk_name  = "non";
+  static void*      mempool      = NULL;
+  static size_t     mempool_ptr  = 0x00;
+
+  #include "bits/xforms.c"
   #include "bits/xlate_tab.c"
 
 // ---   *   ---   *   ---
@@ -239,6 +244,9 @@ void tryipret(
 
 void main(void) {
 
+  mempool=malloc(0x4000);
+  memset(mempool,0,0x4000);
+
   // setup
   strtab=nthash(4);
   #include "bits/loadkeyw.c"
@@ -292,6 +300,7 @@ void main(void) {
   free(expr_mem);
 
   dlhash(strtab);
+  free(mempool);
 
 };
 

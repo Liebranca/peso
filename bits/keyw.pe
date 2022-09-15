@@ -52,15 +52,28 @@ ROM 'keyw';
 # ---   *   ---   *   ---
 
 PROC '$';
-  out(format ELF64 executable 3);
+  out (format ELF64 executable 3);
 
 PROC 'REG';
 
-  in ? "__reg" name;
+  in ? "data" name;
 
-  out(segment readable writeable),
-    (align $10),(.__PESOREG__%s:)
+  xform unquote,name;
+
+  out
+
+    (segment readable writeable),
+    (align $10),(%BLK%.%1$s:)
 
   ;
+
+# ---   *   ---   *   ---
+
+PROC 'BYTE';
+
+  in ? '' name;
+  in ? $00 values;
+
+  out (.%1$s db %2$s);
 
 # ---   *   ---   *   ---

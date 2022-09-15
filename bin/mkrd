@@ -116,7 +116,7 @@ for my $rom($tree->branches_in($ROM_RE)) {
       my $data=$leaf->{leaves};
 
       my $e_name=$data->[0]->{value};
-      my $e_values=$data->[1]->{value};
+      my $e_values=$leaf->leaf_list();
 
       $leaf->pluck(@$data);
 
@@ -180,7 +180,7 @@ for my $ct(@{$comt->{leaves}}) {
 
   );
 
-  my ($open,$close,$rule)=split $COMMA_RE,$value;
+  my ($open,$close,$rule)=@$value;
 
   for my $x($open,$close,$rule) {
     $x=hexP2C($x);
@@ -227,7 +227,7 @@ my $delims=$tree->branch_in(qr{^ROM::'delim'$}x);
 for my $de(@{$delims->{leaves}}) {
 
   my ($name,$size,$value)=array_values($de->{value});
-  my ($open,$close,$rule)=split $COMMA_RE,$value;
+  my ($open,$close,$rule)=@$value;
 
   for my $x($open,$close,$rule) {
     $x=hexP2C($x);
@@ -266,7 +266,7 @@ my $ops=$tree->branch_in(qr{^ROM::'ops'$}x);
 for my $op(@{$ops->{leaves}}) {
 
   my ($name,$size,$values)=array_values($op->{value});
-  my @values=split $COMMA_RE,$values;
+  my @values=@$values;
 
   my $case=$NULLSTR;
 
@@ -308,7 +308,7 @@ for my $t(@{$term->{leaves}}) {
 
   );
 
-  $value=hexP2C($value);
+  $value=hexP2C(@$value);
 
   my $proto=$term_case_proto;
   $proto=~ s[\$value][$value];
@@ -439,7 +439,6 @@ my $k_idex=1;
 my $loadkeyw=$NULLSTR;
 
 my $xlate_tab=$NULLSTR;
-my $xlate_code=$NULLSTR;
 my $xlate_switch="switch(first) {\n\n";
 
 for my $key(@insens,@sens) {
@@ -465,18 +464,13 @@ for my $key(@insens,@sens) {
 
   if($proc) {
 
-    my ($fmat,$code)=
+    my $code=
       Lang->Peso->mini_ipret($rd,$proc);
 
     my $fid='PROC_'.$k_idex;
 
-    $xlate_tab.=
-
-      '#define '.$fid.'_STR'.
-      q{ }.$fmat."\n";
-
     $code=~ s[%FMAT%][$fid]sxmg;
-    $xlate_code.=$code;
+    $xlate_tab.=$code;
 
     $xlate_switch.="case $k_idex:\n";
     $xlate_switch.="  FN_$fid(tcnt,buff);\n";
@@ -488,6 +482,8 @@ for my $key(@insens,@sens) {
 
 };
 
+# ---   *   ---   *   ---
+
 $xlate_switch.="\n}\n";
 
 $loadkeyw.="strtab->keyw_cnt=strtab->top;\n";
@@ -497,26 +493,6 @@ owc('bits/loadkeyw.c',$loadkeyw);
 
 $xlate_tab=Emit::Std::note($AUTHOR,'//').
   $xlate_tab."\n\n";
-
-$xlate_tab.=q%char* get_keyw_or_val(uint64_t x) {
-
-  char* out=NULL;
-
-  if(x<strtab->bsz) {
-    out=strtab->elems[x].key;
-
-  } else {
-    out=strtab->elems[x-strtab->bsz].key;
-
-  };
-
-  return out;
-
-};
-
-%;
-
-$xlate_tab.=$xlate_code;
 
 owc('bits/xlate_tab.c',$xlate_tab);
 
