@@ -1,9 +1,21 @@
-$;
+%;
+
+# ---   *   ---   *   ---
+# BYTEC
+# Constans common to all
+# translators (or most)
+#
+# LIBRE SOFTWARE
+# Licensed under GNU GPL3
+# be a bro and inherit
+#
+# CONTRIBUTORS
+# lyeb,
 
 # ---   *   ---   *   ---
 # info
 
-  TITLE     keyw
+  TITLE     bytec
 
   VERSION   v0.00.1b
   AUTHOR    'IBN-3DILA'
@@ -48,32 +60,5 @@ ROM 'keyw';
   nocase 'byte';
 
   nocase '$';
-
-# ---   *   ---   *   ---
-
-PROC '$';
-  out (format ELF64 executable 3);
-
-PROC 'REG';
-
-  in ? "data" name;
-
-  xform unquote,name;
-
-  out
-
-    (segment readable writeable),
-    (align $10),(%BLK%.%1$s:)
-
-  ;
-
-# ---   *   ---   *   ---
-
-PROC 'BYTE';
-
-  in ? '' name;
-  in ? $00 values;
-
-  out (.%1$s db %2$s);
 
 # ---   *   ---   *   ---

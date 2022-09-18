@@ -8,7 +8,9 @@
   #include <string.h>
   #include <errno.h>
 
+  #include "bits/array.c"
   #include "bits/hash.c"
+  #include "bits/tree.c"
 
 // ---   *   ---   *   ---
 // CONST
@@ -243,6 +245,25 @@ void tryipret(
 // ---   *   ---   *   ---
 
 void main(void) {
+
+  Array ar;array_nit(&ar);
+  array_push(&ar,24);
+
+//  Tree* trees=(Tree*) malloc(0x40*sizeof(Tree));
+//  memset(trees,0,0x40*sizeof(Tree));
+//
+//  trees[0].value="HEYHEY";
+//  trees[1].value="WHOAWHOA";
+//  trees[2].value="EHEH";
+//  trees[3].value="TTTEHEH";
+//
+//  Tree* ar[]=NTL(trees+1,trees+2,trees+3);
+//
+//  tree_push(trees,ar);
+//  tree_prich(trees);
+//
+//  free(trees);
+  exit(0);
 
   mempool=malloc(0x4000);
   memset(mempool,0,0x4000);
