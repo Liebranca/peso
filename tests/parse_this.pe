@@ -1,10 +1,9 @@
-# format ELF executable 3
 $;
 
-# segment readable writeable
-# align $10
-# .__PESOREG__%name%
-REG 'dump';
+# ---   *   ---   *   ---
 
-# %name% db %values%
+mem dump;
   byte x $01;
+
+# ---   *   ---   *   ---
+;

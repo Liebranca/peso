@@ -23,59 +23,67 @@ import;
 # ---   *   ---   *   ---
 # info
 
-  TITLE     C
+  TITLE     C;
 
-  VERSION   v0.00.1b
-  AUTHOR    'IBN-3DILA'
+  VERSION   v0.00.1b;
+  AUTHOR    'IBN-3DILA';
 
-  CLAN      xlate
-
-  ;
+  CLAN      xlate;
 
 # ---   *   ---   *   ---
 
-PROC '$';
-  out (format ELF64 executable 3);
-
-PROC 'REG';
-
-  in    ? "data" name;
-  xform unquote,name;
-
-  def   Data_Seg 1;
-
-  out
-
-    (segment readable writeable),
-    (align $10),(%BLK%.%1$s:)
-
-  ;
+#PROC '$';
+#  out ();
+#
+#PROC 'REG';
+#
+#  in    ? "data" name;
+#  xform unquote,name;
+#
+#  def   Data_Seg 1;
+#
+#  out
+#
+#    (segment readable writeable),
+#    (align $10),(%BLK%.%1$s:)
+#
+#  ;
 
 # ---   *   ---   *   ---
 
-PROC 'BYTE';
-
-  in ? ''   name;
-  in ? $00  values;
-
-  out (.%1$s db %2$s);
+#PROC 'BYTE';
+#
+#  in ? ''   name;
+#  in ? $00  values;
+#
+#  out (.%1$s db %2$s);
 
 # ---   *   ---   *   ---
 
 PROC 'PROC';
 
-  in   "ins"    name;
-  in ? 'nihil'  type;
+  in byte str name;
+  in byte str type nihil;
 
   on defd Data_Seg || !defd Code_Seg;
 
     undef Data_Seg;
     def   Code_Seg 1;
 
-    out (segment readable executable);
+  off;
+
+# ---   *   ---   *   ---
+
+  on type == nihil;
+    out (void %BLK%_%name%(void));
+
+  on type == stark;
+    out (void %BLK%_%name%(void*));
+
+  on type == signal;
+    out (void* %BLK%_%name%(void*));
 
   off;
 
-  out (align $10),(%BLK%.%1$s:)
-
 # ---   *   ---   *   ---
+;

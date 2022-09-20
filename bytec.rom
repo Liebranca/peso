@@ -15,14 +15,12 @@
 # ---   *   ---   *   ---
 # info
 
-  TITLE     bytec
+  TITLE     bytec;
 
-  VERSION   v0.00.1b
-  AUTHOR    'IBN-3DILA'
+  VERSION   v0.00.1b;
+  AUTHOR    'IBN-3DILA';
 
-  CLAN      peso
-
-  ;
+  CLAN      peso;
 
 # ---   *   ---   *   ---
 
@@ -53,7 +51,10 @@ ROM 'comt';
 ROM 'keyw';
 
   nocase 'clan';
+
+  nocase 'mem';
   nocase 'rom';
+
   nocase 'reg';
   nocase 'proc';
 
